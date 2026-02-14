@@ -1,3 +1,5 @@
+#define STB_IMAGE_IMPLEMENTATION
+#include <Image/stb_image.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <glad/glad.h>
@@ -139,6 +141,21 @@ int main() {
     if (!window) {
         printf("Failed to open GLFW window");
         return -1;
+    }
+
+    int iconW, iconH, iconChannels;
+    unsigned char* iconPixels = stbi_load("src/icon/MCode.png", &iconW, &iconH, &iconChannels, 4);
+
+    if (iconPixels) {
+        GLFWimage icon;
+        icon.width = iconW;
+        icon.height = iconH;
+        icon.pixels = iconPixels;
+
+        glfwSetWindowIcon(window, 1, &icon);
+        stbi_image_free(iconPixels);
+    } else {
+        printf("Failed to load src/icon/MCode.png\n");
     }
 
     glfwMaximizeWindow(window);
