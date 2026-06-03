@@ -538,6 +538,11 @@ int drawEditor(int screenWidth, int screenHeight, float color[4], int mouseX, in
         glScissor(scissorX, scissorY, scissorW, scissorH);
 
         for (int i = 0; lines[i]; i++) {
+            if (!renderLines || !renderLines[i]) {
+                printf("renderLines[%d] missing\n", i);
+                break;
+            }
+
             float lineY = yStart + i * lineHeight;
             lineY = FLOORF(lineY);
             if (lineY + lineHeight < editorY || lineY > editorY + editorH) continue;
