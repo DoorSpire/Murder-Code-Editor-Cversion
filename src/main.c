@@ -36,6 +36,13 @@ void framebufferSizeCallback(GLFWwindow* window, int width, int height) {
     cmdRebuildRenderLines(cdata, (float)(screenWidth - (int)(screenWidth * EXPLORER_RATIO) - 20), 1.0f);
 }
 
+void windowFocusCallback(GLFWwindow* window, int focused) {
+    if (!focused) {
+        ctrlHeld = 0;
+        shiftHeld = 0;
+    }
+}
+
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     int ctrlPressed = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
 
@@ -178,6 +185,7 @@ int main() {
 
     glViewport(0, 0, fbWidth, fbHeight);
     glfwSetFramebufferSizeCallback(window, framebufferSizeCallback);
+    glfwSetWindowFocusCallback(window, windowFocusCallback);
 
     float modes[4][3][4] = { // The alpha setting is set to 1 bc it should be invis, but it got flipped somehow, so 1 is solid and 0 is invis
         // Editor color               // Segment color          // Borderline color
