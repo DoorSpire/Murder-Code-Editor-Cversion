@@ -172,8 +172,9 @@ void insertTextAtCaret(const char* text) {
 }
 
 void editorKeyDown(int key, char** lines) {
-    if (!lines || !lines[caretLine]) return;
-    if (!lines || caretLine < 0 || caretLine >= lineCount || !lines[caretLine]) return;
+    if (!lines) return;
+    if (caretLine < 0 || caretLine >= lineCount) return;
+    if (!lines[caretLine]) return;
 
     char* line = lines[caretLine];
     int lineLen = (int)strlen(line);
@@ -191,20 +192,24 @@ void editorKeyDown(int key, char** lines) {
         size_t total = 0;
         for (int i = sl; i <= el; i++) {
             int start = (i == sl) ? sc : 0;
-            int end   = (i == el) ? ec : strlen(lines[i]);
-            total += (end - start) + 1; // + newline
+            int end   = (i == el) ? ec : (int)strlen(lines[i]);
+            total += (end - start) + 1;
         }
 
-        char* buf = malloc(total + 1);
+        char* buf = (char*)malloc(total + 1);
+        if (!buf) return;
         char* p = buf;
 
         for (int i = sl; i <= el; i++) {
             int start = (i == sl) ? sc : 0;
-            int end   = (i == el) ? ec : strlen(lines[i]);
-            memcpy(p, &lines[i][start], end - start);
-            p += end - start;
+            int end   = (i == el) ? ec : (int)strlen(lines[i]);
+            int len = end - start;
+            memcpy(p, &lines[i][start], len);
+            p += len;
+
             if (i != el) *p++ = '\n';
         }
+
         *p = '\0';
 
         clipboardSetText(buf);
@@ -213,28 +218,39 @@ void editorKeyDown(int key, char** lines) {
     }
 
     if (ctrlHeld && key == GLFW_KEY_V) {
-        char* clip = clipboardGetText();
-        if (clip) {
-            insertTextAtCaret(clip);
-            free(clip);
+        const char* clip = clipboardGetText();
+        if (clip && *clip) {
+            char* tmp = strdup(clip);
+            if (!tmp) return;
+
+            char* r = tmp;
+            char* w = tmp;
+            while (*r) {
+                if (*r != '\r') {
+                    *w++ = *r;
+                }
+                r++;
+            }
+            *w = '\0';
+
+            insertTextAtCaret(tmp);
+            free(tmp);
         }
         return;
     }
 
     switch (key) {
         case GLFW_KEY_LEFT:
-            if (caretCol > 0) {
-                caretCol--;
-            } else if (caretLine > 0) {
+            if (caretCol > 0) caretCol--;
+            else if (caretLine > 0) {
                 caretLine--;
                 caretCol = (int)strlen(lines[caretLine]);
             }
             selectionClear(&editorSel);
             break;
         case GLFW_KEY_RIGHT:
-            if (caretCol < lineLen) {
-                caretCol++;
-            } else if (lines[caretLine + 1]) {
+            if (caretCol < lineLen) caretCol++;
+            else if (lines[caretLine + 1]) {
                 caretLine++;
                 caretCol = 0;
             }
@@ -244,23 +260,23 @@ void editorKeyDown(int key, char** lines) {
             if (caretLine > 0) {
                 caretLine--;
                 caretMoved = 1;
-                int prevLen = (int)strlen(lines[caretLine]);
-                if (caretCol > prevLen) caretCol = prevLen;
+                int len = (int)strlen(lines[caretLine]);
+                if (caretCol > len) caretCol = len;
             }
             selectionClear(&editorSel);
             break;
         case GLFW_KEY_DOWN:
-            if (lines[caretLine + 1]) {
+            if (caretLine + 1 < lineCount && lines[caretLine + 1]) {
                 caretLine++;
                 caretMoved = 1;
-                int nextLen = (int)strlen(lines[caretLine]);
-                if (caretCol > nextLen) caretCol = nextLen;
+                int len = (int)strlen(lines[caretLine]);
+                if (caretCol > len) caretCol = len;
             }
             selectionClear(&editorSel);
             break;
         case GLFW_KEY_BACKSPACE:
             if (caretCol > 0) {
-                memmove(&line[caretCol - 1], &line[caretCol], (lineLen - caretCol) + 1);
+                memmove(&line[caretCol - 1], &line[caretCol], lineLen - caretCol + 1);
                 caretCol--;
             } else if (caretLine > 0) {
                 int prevLen = (int)strlen(lines[caretLine - 1]);
@@ -274,12 +290,14 @@ void editorKeyDown(int key, char** lines) {
                 free(line);
 
                 for (int i = caretLine; i < lineCount; i++) lines[i] = lines[i + 1];
+
                 lineCount--;
                 lines[lineCount] = NULL;
 
                 caretLine--;
                 caretCol = prevLen;
             }
+
             rebuildRenderLines();
             break;
         case GLFW_KEY_ENTER:
@@ -293,9 +311,7 @@ void editorKeyDown(int key, char** lines) {
                 lines = rawLines;
             }
 
-            for (int i = lineCount; i > caretLine; i--) {
-                lines[i] = lines[i - 1];
-            }
+            for (int i = lineCount; i > caretLine; i--) lines[i] = lines[i - 1];
 
             char* newLine = calloc(MAX_LINE_LEN, 1);
             if (!newLine) return;
@@ -315,14 +331,14 @@ void editorKeyDown(int key, char** lines) {
         }
         default:
             if (key >= 32 && key <= 126) {
-                if (lineLen >= MAX_LINE_LEN - 1) break;
                 if (ctrlHeld) break;
-                memmove(&line[caretCol + 1], &line[caretCol], (lineLen - caretCol) + 1);
+                if (lineLen >= MAX_LINE_LEN - 1) break;
+                memmove(&line[caretCol + 1], &line[caretCol], lineLen - caretCol + 1);
+                char c = (char)key;
+                if (shiftHeld) {
+                    if (c >= 'a' && c <= 'z') c -= 32;
 
-                char c = tolower((char)key);
-                if (shiftHeld == 1) c = toupper(c);
-                if (shiftHeld == 1 && (ispunct((char)key) || isdigit((char)key))) {
-                    switch ((char)key) {
+                    switch (c) {
                         case '1': c = '!'; break;
                         case '2': c = '@'; break;
                         case '3': c = '#'; break;
@@ -350,6 +366,7 @@ void editorKeyDown(int key, char** lines) {
                 line[caretCol] = c;
                 caretCol++;
                 line[lineLen + 1] = '\0';
+
                 rebuildRenderLines();
             }
             break;
