@@ -45,14 +45,26 @@ void deleteSelection(char** lines) {
         char* first = lines[sl];
         char* last  = lines[el];
 
-        first[sc] = '\0';
-        strcat(first, &last[ec]);
+        size_t leftLen  = (size_t)sc;
+        size_t rightLen = strlen(&last[ec]);
 
-        for (int i = el; i > sl; i--) {
+        char* merged = realloc(first, leftLen + rightLen + 1);
+        if (!merged) return;
+
+        lines[sl] = merged;
+        memcpy(merged + leftLen, &last[ec], rightLen + 1);
+
+        for (int i = sl + 1; i <= el; i++) {
             free(lines[i]);
-            for (int j = i; j < lineCount; j++) lines[j] = lines[j + 1];
-            lineCount--;
         }
+
+        int removed = el - sl;
+        for (int i = el + 1; i <= lineCount; i++) {
+            lines[i - removed] = lines[i];
+        }
+
+        lineCount -= removed;
+        lines[lineCount] = NULL;
 
         caretLine = sl;
         caretCol  = sc;
@@ -161,6 +173,7 @@ void insertTextAtCaret(const char* text) {
 
 void editorKeyDown(int key, char** lines) {
     if (!lines || !lines[caretLine]) return;
+    if (!lines || caretLine < 0 || caretLine >= lineCount || !lines[caretLine]) return;
 
     char* line = lines[caretLine];
     int lineLen = (int)strlen(line);
@@ -251,16 +264,19 @@ void editorKeyDown(int key, char** lines) {
                 caretCol--;
             } else if (caretLine > 0) {
                 int prevLen = (int)strlen(lines[caretLine - 1]);
-                lines[caretLine - 1] = realloc(lines[caretLine - 1], prevLen + lineLen + 1);
-                if (!lines[caretLine - 1]) return;
+                int curLen  = (int)strlen(line);
 
-                strcat(lines[caretLine - 1], line);
+                char* merged = realloc(lines[caretLine - 1], prevLen + curLen + 1);
+                if (!merged) return;
+
+                lines[caretLine - 1] = merged;
+                memcpy(merged + prevLen, line, curLen + 1);
                 free(line);
 
-                for (int i = caretLine; i < lineCount; i++) {
-                    lines[i] = lines[i + 1];
-                }
+                for (int i = caretLine; i < lineCount; i++) lines[i] = lines[i + 1];
                 lineCount--;
+                lines[lineCount] = NULL;
+
                 caretLine--;
                 caretCol = prevLen;
             }
@@ -271,7 +287,9 @@ void editorKeyDown(int key, char** lines) {
             if (lineCapacity <= 0) lineCapacity = 16;
             if (lineCount + 1 >= lineCapacity) {
                 lineCapacity *= 2;
-                rawLines = realloc(rawLines, lineCapacity * sizeof(char*));
+                char** tmp = realloc(rawLines, lineCapacity * sizeof(char*));
+                if (!tmp) return;
+                rawLines = tmp;
                 lines = rawLines;
             }
 
@@ -472,6 +490,8 @@ int drawEditor(int screenWidth, int screenHeight, float color[4], int mouseX, in
 
         if (keyPressed) {
             editorKeyDown(keyPressed, lines);
+            lines = rawLines;
+            if (!lines || caretLine < 0 || caretLine >= lineCount) return -1;
         }
 
         float lineHeight = 32.5f;
