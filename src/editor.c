@@ -335,6 +335,7 @@ void editorKeyDown(int key, char** lines) {
                 if (lineLen >= MAX_LINE_LEN - 1) break;
                 memmove(&line[caretCol + 1], &line[caretCol], lineLen - caretCol + 1);
                 char c = (char)key;
+				if (c >= 'A' && c <= 'Z') c = c + ('a' - 'A');
                 if (shiftHeld) {
                     if (c >= 'a' && c <= 'z') c -= 32;
 
